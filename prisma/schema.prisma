@@ -1,0 +1,174 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Пользователи системы
+model User {
+  id            String          @id @default(cuid())
+  name          String
+  login         String          @unique
+  password      String
+  role          UserRole
+  salary        Float           @default(0)
+  salesPercent  Float?          // Процент от продаж (только для менеджеров)
+  avatar        String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  
+  // Связи
+  attendances   Attendance[]
+  sales         Sale[]
+  leads         Lead[]
+  penalties     PenaltyBonus[]
+  achievements  Achievement[]
+  
+  @@map("users")
+}
+
+enum UserRole {
+  OWNER
+  ROP
+  MANAGER
+  OPERATOR
+}
+
+// Посещаемость
+model Attendance {
+  id            String          @id @default(cuid())
+  userId        String
+  date          DateTime        @db.Date
+  arrivalTime   DateTime?
+  departureTime DateTime?
+  status        AttendanceStatus
+  hoursWorked   Float?
+  
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, date])
+  @@map("attendances")
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+}
+
+// Продажи
+model Sale {
+  id          String      @id @default(cuid())
+  managerId   String
+  productType ProductType
+  model       String
+  price       Float
+  clientName  String?
+  comment     String?
+  leadId      String?     // Связь с лидом, если продажа из лида
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  manager     User        @relation(fields: [managerId], references: [id], onDelete: Cascade)
+  lead        Lead?       @relation(fields: [leadId], references: [id])
+  
+  @@map("sales")
+}
+
+enum ProductType {
+  LAPTOP
+  COMPUTER
+}
+
+// Лиды
+model Lead {
+  id              String      @id @default(cuid())
+  operatorId      String
+  clientName      String
+  phone           String
+  interest        Interest
+  status          LeadStatus
+  managerId       String?
+  comment         String?
+  convertedToSale Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  
+  operator        User        @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  sales           Sale[]
+  
+  @@map("leads")
+}
+
+enum Interest {
+  LAPTOP
+  COMPUTER
+  UNDEFINED
+}
+
+enum LeadStatus {
+  COLD
+  WARM
+  TRANSFERRED
+}
+
+// Штрафы и бонусы
+model PenaltyBonus {
+  id          String            @id @default(cuid())
+  userId      String
+  type        PenaltyBonusType
+  amount      Float
+  reason      String
+  date        DateTime          @default(now())
+  createdBy   String
+  
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("penalties_bonuses")
+}
+
+enum PenaltyBonusType {
+  PENALTY
+  BONUS
+}
+
+// План продаж
+model SalesPlan {
+  id                  String    @id @default(cuid())
+  month               String    // Формат: "2026-05"
+  laptopTarget        Int?
+  computerTarget      Int?
+  totalAmountTarget   Float?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  
+  @@unique([month])
+  @@map("sales_plans")
+}
+
+// Достижения
+model Achievement {
+  id          String            @id @default(cuid())
+  userId      String
+  type        AchievementType
+  month       String            // Формат: "2026-05"
+  earnedAt    DateTime          @default(now())
+  
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, type, month])
+  @@map("achievements")
+}
+
+enum AchievementType {
+  BEST_MONTH
+  NO_LATE
+  SNIPER
+  TOP_OPERATOR
+}
